@@ -25,7 +25,10 @@ export function Header({
   onDisconnectUsb,
   onOpenManualModal,
   isSerialSupported,
+  shareState,
 }) {
+  const isHosting = shareState?.mode === 'host';
+  const isViewing = shareState?.mode === 'viewer';
   return (
     <header className="app-header">
       <div className="header-inner">
@@ -90,7 +93,17 @@ export function Header({
           )}
 
           {/* Connection Mode Pill */}
-          {connectionState === DATA_SOURCES.HARDWARE ? (
+          {isHosting ? (
+            <div className="status-pill connected" title={`Broadcasting telemetry room ${shareState.code}`}>
+              <span className="status-dot" />
+              <span>Sharing: {shareState.code}</span>
+            </div>
+          ) : isViewing ? (
+            <div className={`status-pill ${shareState.isHostOnline ? 'connected' : 'disconnected'}`} title={`Connected to room ${shareState.code}`}>
+              <span className="status-dot" />
+              <span>{shareState.isHostOnline ? `Sync: ${shareState.code}` : `Offline: ${shareState.code}`}</span>
+            </div>
+          ) : connectionState === DATA_SOURCES.HARDWARE ? (
             <div className="status-pill connected" title="Connected to hardware via USB Web Serial">
               <span className="status-dot" />
               <span>Live USB</span>

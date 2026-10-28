@@ -55,15 +55,16 @@ class SerialService {
     }
 
     // 2. Try Key-Value token parsing: e.g. "V=3.78,T=29.1" or "VOLT:3.78 TEMP:29.1"
+    // Also matches "TEMP:-127.00 C | ADC:1322 | Estimated battery voltage:2.13 V"
     if (voltage === null || temperature === null) {
-      // Regex for voltage: V=3.78 or V:3.78 or VOLTAGE=3.78
-      const vMatch = line.match(/(?:V|VOLT|VOLTAGE)\s*[:=]\s*(-?\d+(?:\.\d+)?)/i);
+      // Regex for voltage: V=3.78 or V:3.78 or VOLTAGE=3.78 or Estimated battery voltage:2.13 V
+      const vMatch = line.match(/(?:(?:ESTIMATED\s+BATTERY\s+)?VOLTAGE|VOLT|V)\s*[:=]\s*(-?\d+(?:\.\d+)?)/i);
       if (vMatch) {
         voltage = parseFloat(vMatch[1]);
       }
 
       // Regex for temperature: T=29.1 or TEMP:29.1 or TEMPERATURE=29.1
-      const tMatch = line.match(/(?:T|TEMP|TEMPERATURE)\s*[:=]\s*(-?\d+(?:\.\d+)?)/i);
+      const tMatch = line.match(/(?:TEMPERATURE|TEMP|T)\s*[:=]\s*(-?\d+(?:\.\d+)?)/i);
       if (tMatch) {
         temperature = parseFloat(tMatch[1]);
       }
@@ -83,6 +84,9 @@ class SerialService {
     }
 
     if (voltage !== null && !isNaN(voltage) && temperature !== null && !isNaN(temperature)) {
+      // Sensor fault check: DS18B20 disconnects read as -127°C or 85°C (power-on reset uninitialized)
+      const isSensorFault = temperature <= -100 || temperature === 85.0;
+
       return {
         id: `hw-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         voltage: parseFloat(voltage.toFixed(3)),
@@ -90,6 +94,8 @@ class SerialService {
         timestamp: new Date().toISOString(),
         source: DATA_SOURCES.HARDWARE,
         rawString: line,
+        sensorFault: isSensorFault,
+        sensorFaultReason: isSensorFault ? `Hardware sensor fault reported: ${temperature.toFixed(1)}°C (DS18B20 comm failure)` : null,
       };
     }
 

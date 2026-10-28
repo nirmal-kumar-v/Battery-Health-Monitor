@@ -32,7 +32,7 @@ export function evaluateOperatingCondition(reading, settings) {
     };
   }
 
-  const { voltage, temperature } = reading;
+  const { voltage, temperature, sensorFault, sensorFaultReason } = reading;
   const {
     voltageMinCritical = 3.00,
     voltageMinWarning = 3.30,
@@ -42,6 +42,27 @@ export function evaluateOperatingCondition(reading, settings) {
     tempMaxWarning = 45.0,
     tempMaxCritical = 55.0,
   } = settings || {};
+
+  // If a hardware sensor fault is detected (e.g. DS18B20 -127°C or disconnected comms)
+  if (sensorFault || temperature <= -100) {
+    return {
+      condition: OPERATING_CONDITIONS.CRITICAL,
+      title: 'Sensor Communication Fault',
+      primaryReason: sensorFaultReason || `Invalid temperature reading (${temperature.toFixed(1)} °C). Sensor wire disconnected or DS18B20 communication failed.`,
+      details: [
+        {
+          ruleName: 'Sensor Hardware Communication Integrity',
+          level: 'critical',
+          message: `DS18B20 reported invalid reading (${temperature.toFixed(1)} °C). Do not rely on thermal reading until wiring is inspected.`,
+        },
+      ],
+      isVoltageCritical: false,
+      isVoltageWarning: false,
+      isTempCritical: true,
+      isTempWarning: false,
+      sensorFault: true,
+    };
+  }
 
   const violations = [];
 

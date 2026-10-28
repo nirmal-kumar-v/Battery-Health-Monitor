@@ -37,6 +37,7 @@ export const DATA_SOURCES = {
   HARDWARE: 'hardware',
   DEMO: 'demo',
   MANUAL: 'manual',
+  SHARED: 'shared',
 };
 
 export const OPERATING_CONDITIONS = {

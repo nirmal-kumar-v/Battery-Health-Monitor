@@ -18,6 +18,7 @@ import {
   calculateRatesOfChange,
 } from './services/calculations';
 import { DATA_SOURCES, DEFAULT_SETTINGS } from './constants/defaults';
+import { shareService } from './services/shareService';
 
 import './App.css';
 
@@ -34,6 +35,15 @@ export function App() {
   const [isSimulating, setIsSimulating] = useState(false);
   const [serialError, setSerialError] = useState(null);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+
+  // Sharing State
+  const [shareState, setShareState] = useState({
+    mode: 'idle', // 'idle' | 'host' | 'viewer'
+    code: null,
+    status: 'disconnected',
+    isHostOnline: false,
+    isNewRoom: false,
+  });
 
   // Network & PWA State
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
@@ -74,6 +84,11 @@ export function App() {
         return next;
       });
 
+      // If we are actively hosting a share room and this is a hardware reading, broadcast it to cloud
+      if (shareService.mode === 'host' && reading.source === DATA_SOURCES.HARDWARE) {
+        shareService.publishReading(reading);
+      }
+
       // Check critical limits for throttled EmailJS notification
       const evalResult = evaluateOperatingCondition(reading, settings);
       if (evalResult.condition === 'critical') {
@@ -83,7 +98,7 @@ export function App() {
     [settings]
   );
 
-  // Setup Serial Callbacks
+    // Setup Serial Callbacks
   useEffect(() => {
     serialService.setCallbacks({
       onReading: (reading) => {
@@ -110,10 +125,34 @@ export function App() {
       },
     });
 
+    // Setup Share Service Callbacks
+    shareService.setCallbacks({
+      onReading: (remoteData, options = {}) => {
+        if (options.isBatch && Array.isArray(remoteData)) {
+          setReadings(remoteData.slice(-150));
+        } else if (remoteData) {
+          setReadings((prev) => {
+            const next = [...prev, remoteData].slice(-150);
+            return next;
+          });
+        }
+      },
+      onStateChange: (stateUpdate) => {
+        setShareState((prev) => ({
+          ...prev,
+          ...stateUpdate,
+        }));
+      },
+      onError: (err) => {
+        console.warn('[Share] Error:', err);
+      },
+    });
+
     // Cleanup on unmount
     return () => {
       serialService.disconnect();
       simulatorService.stop();
+      shareService.leaveRoom();
     };
   }, [handleNewReading]);
 
@@ -153,6 +192,40 @@ export function App() {
     if (outcome === 'accepted') {
       setDeferredInstallPrompt(null);
     }
+  };
+
+  // Cross-Device Sharing Handlers
+  const handleStartHosting = async (roomCode) => {
+    // If simulator was active, stop it so only real hardware is shared
+    if (isSimulating) {
+      simulatorService.stop();
+      setIsSimulating(false);
+    }
+    await shareService.startHosting(roomCode);
+  };
+
+  const handleJoinRoom = async (roomCode) => {
+    // Stop local simulations and hardware connections when entering remote viewer mode
+    if (isSimulating) {
+      simulatorService.stop();
+      setIsSimulating(false);
+    }
+    if (connectionState === DATA_SOURCES.HARDWARE) {
+      await serialService.disconnect();
+    }
+    // Clear local readings buffer so we immediately and cleanly display remote room data
+    setReadings([]);
+    setConnectionState(DATA_SOURCES.SHARED);
+    return await shareService.joinRoom(roomCode);
+  };
+
+  const handleStopSharing = async () => {
+    await shareService.stopSharing();
+    if (connectionState === DATA_SOURCES.SHARED) {
+      setConnectionState('disconnected');
+    }
+    // Reload local stored readings if any
+    setReadings(storageService.loadReadings());
   };
 
   // Hardware USB Connection
@@ -235,6 +308,7 @@ export function App() {
         onDisconnectUsb={handleDisconnectUsb}
         onOpenManualModal={() => setIsManualModalOpen(true)}
         isSerialSupported={isSerialSupported}
+        shareState={shareState}
       />
 
       {/* Main Content Area */}
@@ -257,6 +331,11 @@ export function App() {
             onOpenManualModal={() => setIsManualModalOpen(true)}
             readings={readings}
             onNavigateTab={setActiveTab}
+            shareState={shareState}
+            isShareConfigured={shareService.isConfigured()}
+            onStartHosting={handleStartHosting}
+            onJoinRoom={handleJoinRoom}
+            onStopSharing={handleStopSharing}
           />
         )}
 

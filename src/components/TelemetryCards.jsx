@@ -131,19 +131,21 @@ export function TelemetryCards({
             <span
               className="metric-badge"
               style={{
-                backgroundColor: evaluation.isTempCritical
+                backgroundColor: (evaluation.sensorFault || evaluation.isTempCritical)
                   ? 'var(--critical-surface)'
                   : evaluation.isTempWarning
                   ? 'var(--warning-surface)'
                   : 'var(--sage-surface)',
-                color: evaluation.isTempCritical
+                color: (evaluation.sensorFault || evaluation.isTempCritical)
                   ? 'var(--critical-alert)'
                   : evaluation.isTempWarning
                   ? 'var(--warning-accent)'
                   : 'var(--primary-brand)',
               }}
             >
-              {evaluation.isTempCritical
+              {evaluation.sensorFault
+                ? 'Fault'
+                : evaluation.isTempCritical
                 ? 'Critical'
                 : evaluation.isTempWarning
                 ? 'Warning'
@@ -154,9 +156,9 @@ export function TelemetryCards({
 
         <div className="metric-value-row">
           <span className="metric-value tabular-nums">
-            {temperature !== null ? temperature.toFixed(1) : '--.-'}
+            {evaluation.sensorFault ? 'FAULT' : (temperature !== null ? temperature.toFixed(1) : '--.-')}
           </span>
-          <span className="metric-unit">°C</span>
+          <span className="metric-unit">{evaluation.sensorFault ? '' : '°C'}</span>
         </div>
 
         <div className="range-meter-wrapper">
