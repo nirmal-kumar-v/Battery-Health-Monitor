@@ -67,3 +67,4 @@ CREATE POLICY "Allow inserting history"
 -- 5. Enable Supabase Realtime publication on these tables
 ALTER PUBLICATION supabase_realtime ADD TABLE public.dashboard_rooms;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.telemetry_history;
+

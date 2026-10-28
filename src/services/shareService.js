@@ -39,6 +39,7 @@ class ShareService {
     this.lastPublishedTime = 0;
     this.minPublishIntervalMs = 800; // Rate limit remote writes to avoid spamming the DB
     this.hostSessionId = `host-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    this._lastPolledTimestamp = null; // tracks last polled reading timestamp to avoid duplicates
   }
 
   isConfigured() {
@@ -156,7 +157,7 @@ class ShareService {
     this.lastPublishedTime = now;
 
     try {
-      const payload = {
+      const fullPayload = {
         room_code: this.currentRoom,
         voltage: reading.voltage,
         temperature: reading.temperature,
@@ -167,11 +168,11 @@ class ShareService {
         measured_at: reading.timestamp || new Date().toISOString(),
       };
 
-      // 1. Update the latest reading state on the room row for instant lookup
-      await supabase
+      // 1. Update the latest reading state on the room row (stored as JSONB — all fields allowed)
+      const { error: updateErr } = await supabase
         .from('dashboard_rooms')
         .update({
-          latest_reading: payload,
+          latest_reading: fullPayload,
           last_heartbeat: new Date().toISOString(),
           is_active: true,
           updated_at: new Date().toISOString(),
@@ -179,10 +180,27 @@ class ShareService {
         .eq('code', this.currentRoom)
         .eq('host_session_id', this.hostSessionId);
 
-      // 2. Also insert into telemetry_history table (rate-limited snapshot)
-      await supabase
+      if (updateErr) {
+        console.warn('[ShareService] Room update failed:', updateErr.message);
+      }
+
+      // 2. Insert into telemetry_history (only columns that exist in the table)
+      const { error: insertErr } = await supabase
         .from('telemetry_history')
-        .insert([payload]);
+        .insert([{
+          room_code: this.currentRoom,
+          voltage: reading.voltage,
+          temperature: reading.temperature,
+          raw_string: reading.rawString || '',
+          sensor_fault: Boolean(reading.sensorFault),
+          sensor_fault_reason: reading.sensorFaultReason || null,
+          source: reading.source || DATA_SOURCES.HARDWARE,
+          measured_at: reading.timestamp || new Date().toISOString(),
+        }]);
+
+      if (insertErr) {
+        console.warn('[ShareService] Telemetry insert failed:', insertErr.message);
+      }
     } catch (err) {
       console.warn('[ShareService] Publish failed:', err);
     }
@@ -249,10 +267,10 @@ class ShareService {
     // Fetch initial history (last 50 readings) for charts and logs
     this.fetchRecentHistory(code);
 
-    // Start a periodic check to detect host offline/stale status
+    // Start a periodic check to detect host status AND fetch latest readings (every 2s)
     this.staleCheckTimer = setInterval(() => {
       this.checkHostLiveness();
-    }, 4000);
+    }, 2000);
 
     if (this.onRoomStateChanged) {
       this.onRoomStateChanged({
@@ -276,17 +294,31 @@ class ShareService {
     try {
       const { data: room } = await supabase
         .from('dashboard_rooms')
-        .select('last_heartbeat, is_active, updated_at')
+        .select('last_heartbeat, is_active, updated_at, latest_reading')
         .eq('code', this.currentRoom)
         .maybeSingle();
 
       if (room) {
         const lastHb = room.last_heartbeat ? new Date(room.last_heartbeat).getTime() : 0;
         const isOnline = Date.now() - lastHb < 15000 && Boolean(room.is_active);
+
+        // Poll-based reading delivery: push latest_reading to the viewer every cycle.
+        // This ensures data arrives even if the Realtime subscription misses events.
+        if (room.latest_reading && this.onReadingReceived) {
+          const reading = this.formatReading(room.latest_reading);
+          // Only push if the reading timestamp has changed since the last poll
+          const readingTs = reading.timestamp || '';
+          if (readingTs !== this._lastPolledTimestamp) {
+            this._lastPolledTimestamp = readingTs;
+            this.onReadingReceived(reading, { isHistorical: false });
+          }
+        }
+
         if (this.onRoomStateChanged) {
           this.onRoomStateChanged({
             mode: 'viewer',
             code: this.currentRoom,
+            status: isOnline ? 'connected' : 'stale',
             isHostOnline: isOnline,
           });
         }
@@ -426,6 +458,7 @@ class ShareService {
     }
     this.currentRoom = null;
     this.mode = 'idle';
+    this._lastPolledTimestamp = null;
 
     if (this.onRoomStateChanged) {
       this.onRoomStateChanged({
@@ -439,3 +472,4 @@ class ShareService {
 }
 
 export const shareService = new ShareService();
+

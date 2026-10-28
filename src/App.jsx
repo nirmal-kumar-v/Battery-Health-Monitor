@@ -84,8 +84,14 @@ export function App() {
         return next;
       });
 
-      // If we are actively hosting a share room and this is a hardware reading, broadcast it to cloud
-      if (shareService.mode === 'host' && reading.source === DATA_SOURCES.HARDWARE) {
+      // If we are actively hosting a share room, broadcast the reading to cloud
+      // Allow hardware, demo, and manual readings so testing works without a physical ESP32
+      if (
+        shareService.mode === 'host' &&
+        (reading.source === DATA_SOURCES.HARDWARE ||
+         reading.source === DATA_SOURCES.DEMO ||
+         reading.source === DATA_SOURCES.MANUAL)
+      ) {
         shareService.publishReading(reading);
       }
 
