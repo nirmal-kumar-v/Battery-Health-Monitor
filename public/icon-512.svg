@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="113" fill="#315C48"/>
+  <g transform="translate(76.8, 76.8)">
+    <!-- Battery Body Outline -->
+    <rect x="28.671999999999997" y="78.848" width="258.048" height="200.704" rx="28.671999999999997" fill="none" stroke="#FFFFFF" stroke-width="25.088" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Battery Positive Terminal -->
+    <path d="M 301.056 143.35999999999999 C 322.56 143.35999999999999, 322.56 215.04, 301.056 215.04" fill="#FFFFFF"/>
+    <!-- Internal Health Pulse Line -->
+    <path d="M 64.512 179.2 L 114.68799999999999 179.2 L 143.35999999999999 125.43999999999998 L 172.03199999999998 232.95999999999998 L 200.704 179.2 L 250.87999999999997 179.2" fill="none" stroke="#E8EFE7" stroke-width="19.712" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
