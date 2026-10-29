@@ -8,6 +8,7 @@ import { SettingsTab } from './components/SettingsTab';
 import { ManualDemoModal } from './components/ManualDemoModal';
 
 import { serialService } from './services/serialService';
+import { computeHealth } from './services/healthScore';
 import { simulatorService } from './services/simulatorService';
 import { storageService } from './services/storageService';
 import { emailService } from './services/emailService';

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { TelemetryCards } from './TelemetryCards';
 import { ConditionBanner } from './ConditionBanner';
+import { BatteryHealthCard } from './BatteryHealthCard';
 import { DeviceShareCard } from './DeviceShareCard';
 import { DATA_SOURCES } from '../constants/defaults';
 
@@ -157,6 +158,7 @@ export function DashboardTab({
 
       {/* 2. Primary Estimated Operating Condition Banner with triggering rule explanation */}
       <ConditionBanner evaluation={evaluation} />
+      <BatteryHealthCard latestReading={latestReading} settings={settings} />
 
       {/* 3. Primary Telemetry Metric Cards */}
       <TelemetryCards
